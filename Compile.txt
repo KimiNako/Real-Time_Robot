@@ -1,0 +1,14 @@
+ssh pi@10.105.1.x
+sudo ./netbeans/......................./dist/.../superviseur-robot
+
+et on doit avoir periodic movement update
+
+ssh pi@10.105.1.x
+
+
+
+(sur netbeans : set build host : pi@10.105.1.x)
+
+cd .netbeans/remote/10.105.1.5/insa-20486-Linux-x86_64/home/katran/Bureau/Real-Time_Robot/software/raspberry/superviseur-robot/dist/Debug__RPI_/GNU-Linux/
+
+sudo ./superviseur-robot 
