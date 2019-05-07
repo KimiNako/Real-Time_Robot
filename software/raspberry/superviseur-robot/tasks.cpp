@@ -94,6 +94,10 @@ void Tasks::Init() {
         cerr << "Error semaphore create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    if (err = rt_sem_create(&sem_camera, NULL, 0, S_FIFO)) {
+        cerr << "Error camera semaphore create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
     cout << "Semaphores created successfully" << endl << flush;
 
     /**************************************************************************************/
@@ -125,7 +129,15 @@ void Tasks::Init() {
     }
     
     if (err = rt_task_create(&th_battery, "th_battery", 0, PRIORITY_TBATTERY, 0)) {
-        cerr << "Error task create: " << strerror(-err) << endl << flush;
+        cerr << "Error battery task create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+    if (err = rt_task_create(&th_camera, "th_camera", 0, PRIORITY_TCAMERA, 0)) {
+        cerr << "Error camera task create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+    if (err = rt_task_create(&th_camanalysis, "th_camanalysis", 0, PRIORITY_TCAMERA, 0)) {
+        cerr << "Error analysis task create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
     cout << "Tasks created successfully" << endl << flush;
@@ -174,7 +186,15 @@ void Tasks::Run() {
     }
 
     if (err = rt_task_start(&th_battery, (void(*)(void*)) & Tasks::BatteryTask, this)) {
-        cerr << "Error task start: " << strerror(-err) << endl << flush;
+        cerr << "Error battery task start: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+    if (err = rt_task_start(&th_camera, (void(*)(void*)) & Tasks::CameraTask, this)) {
+        cerr << "Error camera task start: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+    if (err = rt_task_start(&th_camanalysis, (void(*)(void*)) & Tasks::AnalysisTask, this)) {
+        cerr << "Error analysis task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
     cout << "Tasks launched" << endl << flush;
@@ -425,6 +445,55 @@ void Tasks::BatteryTask(void *arg) {
             rt_mutex_release(&mutex_monitor);
         }
         cout << endl << flush;
+    }
+}
+
+void Tasks::CameraTask(void *arg) {
+    int rs;
+    //Message
+    Message *failed_open_cam;
+    
+    cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
+    // Synchronization barrier (waiting that all tasks are starting)
+    rt_sem_p(&sem_barrier, TM_INFINITE);
+    /**************************************************************************************/
+    /* The task starts here                                                               */
+    /**************************************************************************************/
+    rt_sem_p(&sem_camera, TM_INFINITE);
+    
+    rt_task_set_periodic(NULL, TM_NOW, 500000000);
+
+    
+    //initialisation
+    
+    Camera cam;
+    bool status_camera = cam.Open();
+    if (status_camera == false) {
+        failed_open_cam = new Message(MESSAGE_ANSWER_NACK);
+        WriteInQueue(&q_messageToMon, failed_open_cam);
+    }
+ 
+    //loop
+    while (1) {
+        
+    }
+}
+
+void Tasks::AnalysisTask(void *arg) {
+    int rs;
+    //Message
+    cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
+    // Synchronization barrier (waiting that all tasks are starting)
+    rt_sem_p(&sem_barrier, TM_INFINITE);
+    /**************************************************************************************/
+    /* The task starts here                                                               */
+    /**************************************************************************************/
+    rt_sem_p(&sem_camera);
+    
+    rt_task_set_periodic(NULL, TM_NOW, 500000000);
+
+    while (1) {
+        
     }
 }
 
