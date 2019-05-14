@@ -19,11 +19,10 @@
 #include <stdexcept>
 
 // Déclaration des priorités des taches
-#define PRIORITY_TSERVER 30
+#define PRIORITY_TRECEIVEFROMMON 30
 #define PRIORITY_TOPENCOMROBOT 20
 #define PRIORITY_TMOVE 20
 #define PRIORITY_TSENDTOMON 22
-#define PRIORITY_TRECEIVEFROMMON 25
 #define PRIORITY_TSTARTROBOT 20
 #define PRIORITY_TCAMERA 21
 #define PRIORITY_TBATTERY 19
@@ -107,18 +106,16 @@ void Tasks::Init() {
     /**************************************************************************************/
     /* Tasks creation                                                                     */
     /**************************************************************************************/
-    if (err = rt_task_create(&th_server, "th_server", 0, PRIORITY_TSERVER, 0)) {
-        cerr << "Error task create: " << strerror(-err) << endl << flush;
-        exit(EXIT_FAILURE);
-    }
-    if (err = rt_task_create(&th_sendToMon, "th_sendToMon", 0, PRIORITY_TSENDTOMON, 0)) {
-        cerr << "Error task create: " << strerror(-err) << endl << flush;
-        exit(EXIT_FAILURE);
-    }
     if (err = rt_task_create(&th_receiveFromMon, "th_receiveFromMon", 0, PRIORITY_TRECEIVEFROMMON, 0)) {
         cerr << "Error task create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    
+    if (err = rt_task_create(&th_sendToMon, "th_sendToMon", 0, PRIORITY_TSENDTOMON, 0)) {
+        cerr << "Error task create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+
     if (err = rt_task_create(&th_openComRobot, "th_openComRobot", 0, PRIORITY_TOPENCOMROBOT, 0)) {
         cerr << "Error task create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
@@ -172,18 +169,16 @@ void Tasks::Run() {
     rt_task_set_priority(NULL, T_LOPRIO);
     int err;
 
-    if (err = rt_task_start(&th_server, (void(*)(void*)) & Tasks::ServerTask, this)) {
-        cerr << "Error task start: " << strerror(-err) << endl << flush;
-        exit(EXIT_FAILURE);
-    }
-    if (err = rt_task_start(&th_sendToMon, (void(*)(void*)) & Tasks::SendToMonTask, this)) {
-        cerr << "Error task start: " << strerror(-err) << endl << flush;
-        exit(EXIT_FAILURE);
-    }
     if (err = rt_task_start(&th_receiveFromMon, (void(*)(void*)) & Tasks::ReceiveFromMonTask, this)) {
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    
+    if (err = rt_task_start(&th_sendToMon, (void(*)(void*)) & Tasks::SendToMonTask, this)) {
+        cerr << "Error task start: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+
     if (err = rt_task_start(&th_openComRobot, (void(*)(void*)) & Tasks::OpenComRobot, this)) {
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
@@ -229,33 +224,6 @@ void Tasks::Join() {
 }
 
 /**
- * @brief Thread handling server communication with the monitor.
- */
-void Tasks::ServerTask(void *arg) {
-    int status;
-    
-    cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
-    // Synchronization barrier (waiting that all tasks are started)
-    rt_sem_p(&sem_barrier, TM_INFINITE);
-
-    /**************************************************************************************/
-    /* The task server starts here                                                        */
-    /**************************************************************************************/
-    rt_mutex_acquire(&mutex_monitor, TM_INFINITE);
-    status = monitor.Open(SERVER_PORT);
-    rt_mutex_release(&mutex_monitor);
-
-    cout << "Open server on port " << (SERVER_PORT) << " (" << status << ")" << endl;
-
-    if (status < 0) throw std::runtime_error {
-        "Unable to start server on port " + std::to_string(SERVER_PORT)
-    };
-    monitor.AcceptClient(); // Wait the monitor client
-    cout << "Rock'n'Roll baby, client accepted!" << endl << flush;
-    rt_sem_broadcast(&sem_serverOk);
-}
-
-/**
  * @brief Thread sending data to monitor.
  */
 void Tasks::SendToMonTask(void* arg) {
@@ -293,14 +261,31 @@ void Tasks::ReceiveFromMonTask(void *arg) {
     /**************************************************************************************/
     /* The task receiveFromMon starts here                                                */
     /**************************************************************************************/
-    rt_sem_p(&sem_serverOk, TM_INFINITE);
+    int status;
+     
+    // Start server
+    rt_mutex_acquire(&mutex_monitor, TM_INFINITE);
+    status = monitor.Open(SERVER_PORT);
+    rt_mutex_release(&mutex_monitor);
+
+    cout << "Open server on port " << (SERVER_PORT) << " (" << status << ")" << endl;
+
+    if (status < 0) throw std::runtime_error {
+        "Unable to start server on port " + std::to_string(SERVER_PORT)
+    };
+    
+    // Establish connection with monitor
+    monitor.AcceptClient(); // Wait the monitor client
+    cout << "Rock'n'Roll baby, client accepted!" << endl << flush;
+    rt_sem_broadcast(&sem_serverOk);
+
+    // Strat reading received message 
     cout << "Received message from monitor activated" << endl << flush;
 
     while (1) {
         
         msgRcv = monitor.Read();
         cout << "Rcv <= " << msgRcv->ToString() << endl << flush;
-
         if (msgRcv->CompareID(MESSAGE_MONITOR_LOST)) {
             delete(msgRcv);
             exit(-1);
