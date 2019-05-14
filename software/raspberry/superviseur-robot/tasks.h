@@ -67,6 +67,7 @@ private:
     int robotStarted = 0;
     int move = MESSAGE_ROBOT_STOP;
     int battery = MESSAGE_ROBOT_STOP;
+    bool computePositionMode = false;
     
     /**********************************************************************/
     /* Tasks                                                              */
@@ -103,6 +104,8 @@ private:
     /**********************************************************************/
     int MSG_QUEUE_SIZE;
     RT_QUEUE q_messageToMon;
+    RT_QUEUE q_messageToArena;
+    RT_QUEUE q_messageToCam;
     
     /**********************************************************************/
     /* Tasks' functions                                                   */

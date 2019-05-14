@@ -149,6 +149,14 @@ void Tasks::Init() {
         cerr << "Error msg queue create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    if ((err = rt_queue_create(&q_messageToArena, "q_messageToArena", sizeof (Message*)*50, Q_UNLIMITED, Q_FIFO)) < 0) {
+        cerr << "Error msg queue arena create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+    if ((err = rt_queue_create(&q_messageToCam, "q_messageToCam", sizeof (Message*)*50, Q_UNLIMITED, Q_FIFO)) < 0) {
+        cerr << "Error msg queue arena create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
     cout << "Queues created successfully" << endl << flush;
 
 }
@@ -285,6 +293,7 @@ void Tasks::ReceiveFromMonTask(void *arg) {
     cout << "Received message from monitor activated" << endl << flush;
 
     while (1) {
+        
         msgRcv = monitor.Read();
         cout << "Rcv <= " << msgRcv->ToString() << endl << flush;
 
@@ -304,8 +313,19 @@ void Tasks::ReceiveFromMonTask(void *arg) {
             rt_mutex_acquire(&mutex_move, TM_INFINITE);
             move = msgRcv->GetID();
             rt_mutex_release(&mutex_move);
+        } else if (msgRcv->CompareID(MESSAGE_CAM_OPEN)) {
+            rt_sem_v(&sem_camera);
+        } else if (msgRcv->CompareID(MESSAGE_CAM_CLOSE)) {
+            rt_sem_p(&sem_camera, TM_INFINITE); 
+                //msgRcv->CompareID(MESSAGE_CAM_POSITION_COMPUTE_START) ||
+                //msgRcv->CompareID(MESSAGE_CAM_POSITION_COMPUTE_STOP)) { 
+            
+        } else if (msgRcv->CompareID(MESSAGE_CAM_ASK_ARENA)  ||
+                msgRcv->CompareID(MESSAGE_CAM_ARENA_CONFIRM) ||
+                msgRcv->CompareID(MESSAGE_CAM_ARENA_INFIRM)) {
+            WriteInQueue(&q_messageToArena,msgRcv);
         }
-        delete(msgRcv); // mus be deleted manually, no consumer
+        delete(msgRcv); // must be deleted manually, no consumer
     }
 }
 
@@ -488,7 +508,7 @@ void Tasks::AnalysisTask(void *arg) {
     /**************************************************************************************/
     /* The task starts here                                                               */
     /**************************************************************************************/
-    rt_sem_p(&sem_camera);
+    rt_sem_p(&sem_camera, TM_INFINITE);
     
     rt_task_set_periodic(NULL, TM_NOW, 500000000);
 
