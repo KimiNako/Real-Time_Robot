@@ -73,6 +73,10 @@ void Tasks::Init() {
         cerr << "Error mutex create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    if (err = rt_mutex_create(&mutex_computePositionMode, NULL)) {
+        cerr << "Error mutex compute Position Mode create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
     cout << "Mutexes created successfully" << endl << flush;
 
     /**************************************************************************************/
@@ -317,9 +321,14 @@ void Tasks::ReceiveFromMonTask(void *arg) {
             rt_sem_v(&sem_camera);
         } else if (msgRcv->CompareID(MESSAGE_CAM_CLOSE)) {
             rt_sem_p(&sem_camera, TM_INFINITE); 
-                //msgRcv->CompareID(MESSAGE_CAM_POSITION_COMPUTE_START) ||
-                //msgRcv->CompareID(MESSAGE_CAM_POSITION_COMPUTE_STOP)) { 
-            
+        } else if (msgRcv->CompareID(MESSAGE_CAM_POSITION_COMPUTE_START)) {
+            rt_mutex_acquire(&mutex_computePositionMode, TM_INFINITE);
+            computePositionMode = true;
+            rt_mutex_release(&mutex_computePositionMode);
+        } else if (msgRcv->CompareID(MESSAGE_CAM_POSITION_COMPUTE_STOP)) {
+            rt_mutex_acquire(&mutex_computePositionMode, TM_INFINITE);
+            computePositionMode = false;
+            rt_mutex_release(&mutex_computePositionMode);
         } else if (msgRcv->CompareID(MESSAGE_CAM_ASK_ARENA)  ||
                 msgRcv->CompareID(MESSAGE_CAM_ARENA_CONFIRM) ||
                 msgRcv->CompareID(MESSAGE_CAM_ARENA_INFIRM)) {
