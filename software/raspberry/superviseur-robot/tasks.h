@@ -67,7 +67,8 @@ private:
     int robotStarted = 0;
     int move = MESSAGE_ROBOT_STOP;
     int battery = MESSAGE_ROBOT_STOP;
-    Img image;
+    //Img image;
+    bool computePositionMode = false;
     
     /**********************************************************************/
     /* Tasks                                                              */
@@ -90,6 +91,7 @@ private:
     RT_MUTEX mutex_move;
     RT_MUTEX mutex_battery;
     RT_MUTEX mutex_image;
+    RT_MUTEX mutex_computePositionMode;
     
     /**********************************************************************/
     /* Semaphores                                                         */
@@ -106,6 +108,7 @@ private:
     int MSG_QUEUE_SIZE;
     RT_QUEUE q_messageToMon;
     RT_QUEUE q_arena;
+    RT_QUEUE q_messageToCam;
     
     /**********************************************************************/
     /* Tasks' functions                                                   */

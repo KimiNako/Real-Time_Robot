@@ -19,11 +19,10 @@
 #include <stdexcept>
 
 // Déclaration des priorités des taches
-#define PRIORITY_TSERVER 30
+#define PRIORITY_TRECEIVEFROMMON 30
 #define PRIORITY_TOPENCOMROBOT 20
 #define PRIORITY_TMOVE 20
 #define PRIORITY_TSENDTOMON 22
-#define PRIORITY_TRECEIVEFROMMON 25
 #define PRIORITY_TSTARTROBOT 20
 #define PRIORITY_TCAMERA 21
 #define PRIORITY_TBATTERY 19
@@ -73,8 +72,14 @@ void Tasks::Init() {
         cerr << "Error mutex create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+
     if (err = rt_mutex_create(&mutex_image, NULL)) {
         cerr << "Error mutex create: " << strerror(-err) << endl << flush;
+    }
+    
+    if (err = rt_mutex_create(&mutex_computePositionMode, NULL)) {
+        cerr << "Error mutex compute Position Mode create: " << strerror(-err) << endl << flush;
+
         exit(EXIT_FAILURE);
     }
     cout << "Mutexes created successfully" << endl << flush;
@@ -107,18 +112,16 @@ void Tasks::Init() {
     /**************************************************************************************/
     /* Tasks creation                                                                     */
     /**************************************************************************************/
-    if (err = rt_task_create(&th_server, "th_server", 0, PRIORITY_TSERVER, 0)) {
-        cerr << "Error task create: " << strerror(-err) << endl << flush;
-        exit(EXIT_FAILURE);
-    }
-    if (err = rt_task_create(&th_sendToMon, "th_sendToMon", 0, PRIORITY_TSENDTOMON, 0)) {
-        cerr << "Error task create: " << strerror(-err) << endl << flush;
-        exit(EXIT_FAILURE);
-    }
     if (err = rt_task_create(&th_receiveFromMon, "th_receiveFromMon", 0, PRIORITY_TRECEIVEFROMMON, 0)) {
         cerr << "Error task create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    
+    if (err = rt_task_create(&th_sendToMon, "th_sendToMon", 0, PRIORITY_TSENDTOMON, 0)) {
+        cerr << "Error task create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+
     if (err = rt_task_create(&th_openComRobot, "th_openComRobot", 0, PRIORITY_TOPENCOMROBOT, 0)) {
         cerr << "Error task create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
@@ -153,8 +156,14 @@ void Tasks::Init() {
         cerr << "Error msg queue create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+
     if ((err = rt_queue_create(&q_arena, "q_arena", sizeof (Message*)*50, Q_UNLIMITED, Q_FIFO)) < 0) {
         cerr << "Error msg queue create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+    
+    if ((err = rt_queue_create(&q_messageToCam, "q_messageToCam", sizeof (Message*)*50, Q_UNLIMITED, Q_FIFO)) < 0) {
+        cerr << "Error msg queue arena create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
     cout << "Queues created successfully" << endl << flush;
@@ -168,18 +177,16 @@ void Tasks::Run() {
     rt_task_set_priority(NULL, T_LOPRIO);
     int err;
 
-    if (err = rt_task_start(&th_server, (void(*)(void*)) & Tasks::ServerTask, this)) {
-        cerr << "Error task start: " << strerror(-err) << endl << flush;
-        exit(EXIT_FAILURE);
-    }
-    if (err = rt_task_start(&th_sendToMon, (void(*)(void*)) & Tasks::SendToMonTask, this)) {
-        cerr << "Error task start: " << strerror(-err) << endl << flush;
-        exit(EXIT_FAILURE);
-    }
     if (err = rt_task_start(&th_receiveFromMon, (void(*)(void*)) & Tasks::ReceiveFromMonTask, this)) {
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    
+    if (err = rt_task_start(&th_sendToMon, (void(*)(void*)) & Tasks::SendToMonTask, this)) {
+        cerr << "Error task start: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+
     if (err = rt_task_start(&th_openComRobot, (void(*)(void*)) & Tasks::OpenComRobot, this)) {
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
@@ -225,33 +232,6 @@ void Tasks::Join() {
 }
 
 /**
- * @brief Thread handling server communication with the monitor.
- */
-void Tasks::ServerTask(void *arg) {
-    int status;
-    
-    cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
-    // Synchronization barrier (waiting that all tasks are started)
-    rt_sem_p(&sem_barrier, TM_INFINITE);
-
-    /**************************************************************************************/
-    /* The task server starts here                                                        */
-    /**************************************************************************************/
-    rt_mutex_acquire(&mutex_monitor, TM_INFINITE);
-    status = monitor.Open(SERVER_PORT);
-    rt_mutex_release(&mutex_monitor);
-
-    cout << "Open server on port " << (SERVER_PORT) << " (" << status << ")" << endl;
-
-    if (status < 0) throw std::runtime_error {
-        "Unable to start server on port " + std::to_string(SERVER_PORT)
-    };
-    monitor.AcceptClient(); // Wait the monitor client
-    cout << "Rock'n'Roll baby, client accepted!" << endl << flush;
-    rt_sem_broadcast(&sem_serverOk);
-}
-
-/**
  * @brief Thread sending data to monitor.
  */
 void Tasks::SendToMonTask(void* arg) {
@@ -289,13 +269,31 @@ void Tasks::ReceiveFromMonTask(void *arg) {
     /**************************************************************************************/
     /* The task receiveFromMon starts here                                                */
     /**************************************************************************************/
-    rt_sem_p(&sem_serverOk, TM_INFINITE);
+    int status;
+     
+    // Start server
+    rt_mutex_acquire(&mutex_monitor, TM_INFINITE);
+    status = monitor.Open(SERVER_PORT);
+    rt_mutex_release(&mutex_monitor);
+
+    cout << "Open server on port " << (SERVER_PORT) << " (" << status << ")" << endl;
+
+    if (status < 0) throw std::runtime_error {
+        "Unable to start server on port " + std::to_string(SERVER_PORT)
+    };
+    
+    // Establish connection with monitor
+    monitor.AcceptClient(); // Wait the monitor client
+    cout << "Rock'n'Roll baby, client accepted!" << endl << flush;
+    rt_sem_broadcast(&sem_serverOk);
+
+    // Strat reading received message 
     cout << "Received message from monitor activated" << endl << flush;
 
     while (1) {
+        
         msgRcv = monitor.Read();
         cout << "Rcv <= " << msgRcv->ToString() << endl << flush;
-
         if (msgRcv->CompareID(MESSAGE_MONITOR_LOST)) {
             delete(msgRcv);
             exit(-1);
@@ -312,8 +310,24 @@ void Tasks::ReceiveFromMonTask(void *arg) {
             rt_mutex_acquire(&mutex_move, TM_INFINITE);
             move = msgRcv->GetID();
             rt_mutex_release(&mutex_move);
+        } else if (msgRcv->CompareID(MESSAGE_CAM_OPEN)) {
+            rt_sem_v(&sem_camera);
+        } else if (msgRcv->CompareID(MESSAGE_CAM_CLOSE)) {
+            rt_sem_p(&sem_camera, TM_INFINITE); 
+        } else if (msgRcv->CompareID(MESSAGE_CAM_POSITION_COMPUTE_START)) {
+            rt_mutex_acquire(&mutex_computePositionMode, TM_INFINITE);
+            computePositionMode = true;
+            rt_mutex_release(&mutex_computePositionMode);
+        } else if (msgRcv->CompareID(MESSAGE_CAM_POSITION_COMPUTE_STOP)) {
+            rt_mutex_acquire(&mutex_computePositionMode, TM_INFINITE);
+            computePositionMode = false;
+            rt_mutex_release(&mutex_computePositionMode);
+        } else if (msgRcv->CompareID(MESSAGE_CAM_ASK_ARENA)  ||
+                msgRcv->CompareID(MESSAGE_CAM_ARENA_CONFIRM) ||
+                msgRcv->CompareID(MESSAGE_CAM_ARENA_INFIRM)) {
+            WriteInQueue(&q_arena,msgRcv);
         }
-        delete(msgRcv); // mus be deleted manually, no consumer
+        delete(msgRcv); // must be deleted manually, no consumer
     }
 }
 
@@ -498,7 +512,7 @@ void Tasks::ArenaTask(void *arg) {
     /**************************************************************************************/
     
     Message *msg = ReadInQueue(&q_arena);
-    
+    /*
     if (msg->CompareID(MESSAGE_CAM_ASK_ARENA)){
         //Stop camera
         rt_mutex_acquire(&mutex_image, TM_INFINITE);
@@ -512,7 +526,7 @@ void Tasks::ArenaTask(void *arg) {
             msg = ReadInQueue(&q_arena);
         }
         rt_mutex_release(&mutex_image);
-    }
+    }*/
 }
 
 
