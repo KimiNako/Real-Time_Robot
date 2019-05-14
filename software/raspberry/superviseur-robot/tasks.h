@@ -67,7 +67,8 @@ private:
     int robotStarted = 0;
     int move = MESSAGE_ROBOT_STOP;
     int battery = MESSAGE_ROBOT_STOP;
-    //Img image;
+    Img* image = 0;
+    Arena* arena = 0;
     bool computePositionMode = false;
     
     /**********************************************************************/

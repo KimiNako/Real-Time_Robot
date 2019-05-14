@@ -502,7 +502,6 @@ void Tasks::CameraTask(void *arg) {
 }
 
 void Tasks::ArenaTask(void *arg) {
-    int rs;
     //Message
     cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
     // Synchronization barrier (waiting that all tasks are starting)
@@ -511,22 +510,43 @@ void Tasks::ArenaTask(void *arg) {
     /* The task starts here                                                               */
     /**************************************************************************************/
     
-    Message *msg = ReadInQueue(&q_arena);
-    /*
-    if (msg->CompareID(MESSAGE_CAM_ASK_ARENA)){
-        //Stop camera
+    bool done = false;
+    
+    while(!done){
+        
+        Message *msg = ReadInQueue(&q_arena);
+        
+        if (!msg->CompareID(MESSAGE_CAM_ASK_ARENA)) {
+            cerr << "Bad message for Arena" << endl << flush;
+            exit(EXIT_FAILURE);
+        }
+    
+        //Pause camera
         rt_mutex_acquire(&mutex_image, TM_INFINITE);
-        Img* img = image.Copy();
+
+        //Copy global image and search arena
+        Img* img = image->Copy();
         Arena ar = img->SearchArena();
+
         if (ar.IsEmpty()){
-            //Envoyer message erreur
+            WriteInQueue(&q_messageToMon, new Message(MESSAGE_ANSWER_NACK));
         } else {
             img->DrawArena(ar);
-            //Envoyer Image
+
+            //Send image to monitor for validation
+            WriteInQueue(&q_messageToMon, new MessageImg(MESSAGE_CAM_IMAGE, img));
+
+            //Wait for validation
             msg = ReadInQueue(&q_arena);
+            if (msg->CompareID(MESSAGE_CAM_ARENA_CONFIRM)) {
+                arena = new Arena(ar);
+                done = true;
+            }
         }
+
+        //Resume camera
         rt_mutex_release(&mutex_image);
-    }*/
+    }
 }
 
 
