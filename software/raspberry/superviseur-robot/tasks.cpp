@@ -441,7 +441,7 @@ void Tasks::BatteryTask(void *arg) {
             rt_mutex_release(&mutex_robot);
                         
             rt_mutex_acquire(&mutex_monitor, TM_INFINITE);
-            monitor.Write(levelBat);
+            WriteInQueue(&q_messageToMon, levelBat);
             rt_mutex_release(&mutex_monitor);
         }
         cout << endl << flush;
