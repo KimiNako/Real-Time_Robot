@@ -73,6 +73,10 @@ void Tasks::Init() {
         cerr << "Error mutex create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    if (err = rt_mutex_create(&mutex_image, NULL)) {
+        cerr << "Error mutex create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
     cout << "Mutexes created successfully" << endl << flush;
 
     /**************************************************************************************/
@@ -136,7 +140,7 @@ void Tasks::Init() {
         cerr << "Error camera task create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
-    if (err = rt_task_create(&th_camanalysis, "th_camanalysis", 0, PRIORITY_TCAMERA, 0)) {
+    if (err = rt_task_create(&th_arena, "th_arena", 0, PRIORITY_TCAMERA, 0)) {
         cerr << "Error analysis task create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
@@ -146,6 +150,10 @@ void Tasks::Init() {
     /* Message queues creation                                                            */
     /**************************************************************************************/
     if ((err = rt_queue_create(&q_messageToMon, "q_messageToMon", sizeof (Message*)*50, Q_UNLIMITED, Q_FIFO)) < 0) {
+        cerr << "Error msg queue create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+    if ((err = rt_queue_create(&q_arena, "q_arena", sizeof (Message*)*50, Q_UNLIMITED, Q_FIFO)) < 0) {
         cerr << "Error msg queue create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
@@ -193,7 +201,7 @@ void Tasks::Run() {
         cerr << "Error camera task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
-    if (err = rt_task_start(&th_camanalysis, (void(*)(void*)) & Tasks::AnalysisTask, this)) {
+    if (err = rt_task_start(&th_arena, (void(*)(void*)) & Tasks::ArenaTask, this)) {
         cerr << "Error analysis task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
@@ -479,7 +487,7 @@ void Tasks::CameraTask(void *arg) {
     }
 }
 
-void Tasks::AnalysisTask(void *arg) {
+void Tasks::ArenaTask(void *arg) {
     int rs;
     //Message
     cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
@@ -488,12 +496,22 @@ void Tasks::AnalysisTask(void *arg) {
     /**************************************************************************************/
     /* The task starts here                                                               */
     /**************************************************************************************/
-    rt_sem_p(&sem_camera);
     
-    rt_task_set_periodic(NULL, TM_NOW, 500000000);
-
-    while (1) {
-        
+    Message *msg = ReadInQueue(&q_arena);
+    
+    if (msg->CompareID(MESSAGE_CAM_ASK_ARENA)){
+        //Stop camera
+        rt_mutex_acquire(&mutex_image, TM_INFINITE);
+        Img* img = image.Copy();
+        Arena ar = img->SearchArena();
+        if (ar.IsEmpty()){
+            //Envoyer message erreur
+        } else {
+            img->DrawArena(ar);
+            //Envoyer Image
+            msg = ReadInQueue(&q_arena);
+        }
+        rt_mutex_release(&mutex_image);
     }
 }
 

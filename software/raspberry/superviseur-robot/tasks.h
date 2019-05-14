@@ -67,6 +67,7 @@ private:
     int robotStarted = 0;
     int move = MESSAGE_ROBOT_STOP;
     int battery = MESSAGE_ROBOT_STOP;
+    Img image;
     
     /**********************************************************************/
     /* Tasks                                                              */
@@ -79,7 +80,7 @@ private:
     RT_TASK th_move;
     RT_TASK th_battery;
     RT_TASK th_camera;
-    RT_TASK th_camanalysis;
+    RT_TASK th_arena;
     /**********************************************************************/
     /* Mutex                                                              */
     /**********************************************************************/
@@ -88,6 +89,7 @@ private:
     RT_MUTEX mutex_robotStarted;
     RT_MUTEX mutex_move;
     RT_MUTEX mutex_battery;
+    RT_MUTEX mutex_image;
     
     /**********************************************************************/
     /* Semaphores                                                         */
@@ -103,6 +105,7 @@ private:
     /**********************************************************************/
     int MSG_QUEUE_SIZE;
     RT_QUEUE q_messageToMon;
+    RT_QUEUE q_arena;
     
     /**********************************************************************/
     /* Tasks' functions                                                   */
@@ -143,7 +146,8 @@ private:
     void BatteryTask(void *arg);
     
     void CameraTask(void *arg);
-    void AnalysisTask(void *arg);
+    
+    void ArenaTask(void *arg);
     
     
     /**********************************************************************/
