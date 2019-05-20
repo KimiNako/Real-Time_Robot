@@ -113,7 +113,7 @@ private:
     RT_QUEUE q_messageToMon;
     RT_QUEUE q_arena;
     RT_QUEUE q_messageToCam;
-    
+    RT_QUEUE q_start_robot;    
     /**********************************************************************/
     /* Tasks' functions                                                   */
     /**********************************************************************/
