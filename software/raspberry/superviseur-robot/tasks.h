@@ -70,6 +70,7 @@ private:
     Img* image = 0;
     Arena* arena = 0;
     bool computePositionMode = false;
+    bool close_camera = false;
     
     /**********************************************************************/
     /* Tasks                                                              */
@@ -94,6 +95,7 @@ private:
     RT_MUTEX mutex_image;
     RT_MUTEX mutex_arena;
     RT_MUTEX mutex_computePositionMode;
+    RT_MUTEX mutex_closeCamera;
     
     /**********************************************************************/
     /* Semaphores                                                         */

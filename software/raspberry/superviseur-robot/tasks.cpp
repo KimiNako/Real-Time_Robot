@@ -87,6 +87,11 @@ void Tasks::Init() {
         cerr << "Error mutex compute Position Mode create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    
+    if (err = rt_mutex_create(&mutex_closeCamera, NULL)) {
+        cerr << "Error mutex close Camera create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
     cout << "Mutexes created successfully" << endl << flush;
 
     /**************************************************************************************/
@@ -318,7 +323,7 @@ void Tasks::ReceiveFromMonTask(void *arg) {
         } else if (msgRcv->CompareID(MESSAGE_CAM_OPEN)) {
             rt_sem_v(&sem_camera);
         } else if (msgRcv->CompareID(MESSAGE_CAM_CLOSE)) {
-            rt_sem_p(&sem_camera, TM_INFINITE); 
+            close_camera = true;
         } else if (msgRcv->CompareID(MESSAGE_CAM_POSITION_COMPUTE_START)) {
             rt_mutex_acquire(&mutex_computePositionMode, TM_INFINITE);
             computePositionMode = true;
@@ -488,21 +493,63 @@ void Tasks::CameraTask(void *arg) {
     /**************************************************************************************/
     rt_sem_p(&sem_camera, TM_INFINITE);
     
-    rt_task_set_periodic(NULL, TM_NOW, 500000000);
+    // set the period in a way that we send an image every 100ms
+    rt_task_set_periodic(NULL, TM_NOW, rt_timer_ns2ticks(100000000));
 
-    
     //initialisation
-    
     Camera cam;
+    bool copy_of_CPM;
+    bool close_cam_order;
+    bool arena_known = false;
+    std::list<Position> robot_position;
+    Position pos;
+    
     bool status_camera = cam.Open();
     if (status_camera == false) {
         failed_open_cam = new Message(MESSAGE_ANSWER_NACK);
         WriteInQueue(&q_messageToMon, failed_open_cam);
     }
+    
  
     //loop
+    
+    
     while (1) {
+        rt_mutex_acquire(&mutex_closeCamera, TM_INFINITE);
+        close_cam_order = close_camera;
+        rt_mutex_release(&mutex_closeCamera);
+        if (close_cam_order == true) {
+            cam.Close();
+            rt_sem_v(&sem_camera);
+            break;
+        }
+        // a tester sans variable intermédiare
+        rt_mutex_acquire(&mutex_image, TM_INFINITE);
         
+        rt_mutex_acquire(&mutex_arena, TM_INFINITE);
+        arena_known = (arena != 0);
+        
+        rt_mutex_acquire(&mutex_computePositionMode, TM_INFINITE);
+        copy_of_CPM = computePositionMode;
+        rt_mutex_release(&mutex_computePositionMode);
+        if ((copy_of_CPM == true) and (arena_known == true)) {
+            robot_position = image->SearchRobot(*arena);
+        }
+        
+        
+        //if (robot_position == []) {
+        //    pos = ?????
+        //    WriteInQueue(&q_messageToMon, new MessagePosition(MESSAGE_CAM_POSITION, pos));        
+        //} else {
+        //    pos = robot_position[0];
+        //}
+        *image = cam.Grab();
+        //WriteInQueue()
+        
+        rt_mutex_release(&mutex_arena);
+        rt_mutex_release(&mutex_image);
+        
+        rt_task_wait_period(NULL);
     }
 }
 
