@@ -92,6 +92,7 @@ private:
     RT_MUTEX mutex_move;
     RT_MUTEX mutex_battery;
     RT_MUTEX mutex_image;
+    RT_MUTEX mutex_arena;
     RT_MUTEX mutex_computePositionMode;
     
     /**********************************************************************/

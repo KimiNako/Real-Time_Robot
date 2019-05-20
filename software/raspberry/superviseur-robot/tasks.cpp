@@ -75,11 +75,16 @@ void Tasks::Init() {
 
     if (err = rt_mutex_create(&mutex_image, NULL)) {
         cerr << "Error mutex create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
     }
     
     if (err = rt_mutex_create(&mutex_computePositionMode, NULL)) {
         cerr << "Error mutex compute Position Mode create: " << strerror(-err) << endl << flush;
-
+        exit(EXIT_FAILURE);
+    }
+    
+    if (err = rt_mutex_create(&mutex_arena, NULL)) {
+        cerr << "Error mutex compute Position Mode create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
     cout << "Mutexes created successfully" << endl << flush;
@@ -539,7 +544,9 @@ void Tasks::ArenaTask(void *arg) {
             //Wait for validation
             msg = ReadInQueue(&q_arena);
             if (msg->CompareID(MESSAGE_CAM_ARENA_CONFIRM)) {
+                rt_mutex_acquire(&mutex_arena, TM_INFINITE);
                 arena = new Arena(ar);
+                rt_mutex_release(&mutex_arena);
                 done = true;
             }
         }
