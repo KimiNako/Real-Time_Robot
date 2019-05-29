@@ -64,6 +64,8 @@ private:
     /**********************************************************************/
     ComMonitor monitor;
     ComRobot robot;
+    int withWD = 0;
+    int cptWD = 0;
     int robotStarted = 0;
     int move = MESSAGE_ROBOT_STOP;
     int battery = MESSAGE_ROBOT_STOP;
@@ -80,6 +82,7 @@ private:
     RT_TASK th_receiveFromMon;
     RT_TASK th_openComRobot;
     RT_TASK th_startRobot;
+    RT_TASK th_loadWD;
     RT_TASK th_move;
     RT_TASK th_battery;
     RT_TASK th_camera;
@@ -90,6 +93,8 @@ private:
     RT_MUTEX mutex_monitor;
     RT_MUTEX mutex_robot;
     RT_MUTEX mutex_robotStarted;
+    RT_MUTEX mutex_withWD;
+   // RT_MUTEX mutex_cptWD;
     RT_MUTEX mutex_move;
     RT_MUTEX mutex_battery;
     RT_MUTEX mutex_image;
@@ -105,6 +110,7 @@ private:
     RT_SEM sem_serverOk;
     RT_SEM sem_startRobot;
     RT_SEM sem_camera;
+    RT_SEM sem_WD;
 
     /**********************************************************************/
     /* Message queues                                                     */
@@ -141,6 +147,8 @@ private:
      * @brief Thread starting the communication with the robot.
      */
     void StartRobotTask(void *arg);
+    
+    void LoadWD(void *arg);
     
     /**
      * @brief Thread handling control of the robot.
