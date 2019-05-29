@@ -65,7 +65,6 @@ private:
     ComMonitor monitor;
     ComRobot robot;
     int withWD = 0;
-    int cptWD = 0;
     int robotStarted = 0;
     int move = MESSAGE_ROBOT_STOP;
     int battery = MESSAGE_ROBOT_STOP;
@@ -94,7 +93,6 @@ private:
     RT_MUTEX mutex_robot;
     RT_MUTEX mutex_robotStarted;
     RT_MUTEX mutex_withWD;
-   // RT_MUTEX mutex_cptWD;
     RT_MUTEX mutex_move;
     RT_MUTEX mutex_battery;
     RT_MUTEX mutex_image;
