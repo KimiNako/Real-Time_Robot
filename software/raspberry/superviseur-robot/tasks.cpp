@@ -25,6 +25,7 @@
 #define PRIORITY_TSENDTOMON 22
 #define PRIORITY_TSTARTROBOT 20
 #define PRIORITY_TCAMERA 21
+#define PRIORITY_TARENA 21
 #define PRIORITY_TBATTERY 19
 /*
  * Some remarks:
@@ -171,7 +172,7 @@ void Tasks::Init() {
         cerr << "Error camera task create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
-    if (err = rt_task_create(&th_arena, "th_arena", 0, PRIORITY_TCAMERA, 0)) {
+    if (err = rt_task_create(&th_arena, "th_arena", 0, PRIORITY_TARENA, 0)) {
         cerr << "Error analysis task create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
@@ -588,6 +589,7 @@ void Tasks::CameraTask(void *arg) {
     /* The task starts here                                                               */
     /**************************************************************************************/
     rt_sem_p(&sem_camera, TM_INFINITE);
+
     // set the period in a way that we send an image every 100ms
     rt_task_set_periodic(NULL, TM_NOW, rt_timer_ns2ticks(100000000));
     
@@ -605,7 +607,7 @@ void Tasks::CameraTask(void *arg) {
         failed_open_cam = new Message(MESSAGE_ANSWER_NACK);
         WriteInQueue(&q_messageToMon, failed_open_cam);
     }
-    
+
     while (1) {
         rt_mutex_acquire(&mutex_closeCamera, TM_INFINITE);
         close_cam_order = close_camera;
