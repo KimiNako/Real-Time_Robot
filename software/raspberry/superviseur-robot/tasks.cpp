@@ -352,9 +352,17 @@ void Tasks::ReceiveFromMonTask(void *arg) {
             move = msgRcv->GetID();
             rt_mutex_release(&mutex_move);
         } else if (msgRcv->CompareID(MESSAGE_CAM_OPEN)) {
+            rt_mutex_acquire(&mutex_closeCamera, TM_INFINITE);
+            close_camera = false;
+            rt_mutex_release(&mutex_closeCamera);
+            
             rt_sem_v(&sem_camera);
         } else if (msgRcv->CompareID(MESSAGE_CAM_CLOSE)) {
+            rt_mutex_acquire(&mutex_closeCamera, TM_INFINITE);
             close_camera = true;
+            rt_mutex_release(&mutex_closeCamera);
+            
+            rt_sem_p(&sem_camera, TM_INFINITE);
         } else if (msgRcv->CompareID(MESSAGE_CAM_POSITION_COMPUTE_START)) {
             rt_mutex_acquire(&mutex_computePositionMode, TM_INFINITE);
             computePositionMode = true;
@@ -588,7 +596,6 @@ void Tasks::CameraTask(void *arg) {
     /**************************************************************************************/
     /* The task starts here                                                               */
     /**************************************************************************************/
-    rt_sem_p(&sem_camera, TM_INFINITE);
 
     // set the period in a way that we send an image every 100ms
     rt_task_set_periodic(NULL, TM_NOW, rt_timer_ns2ticks(100000000));
@@ -602,48 +609,60 @@ void Tasks::CameraTask(void *arg) {
     std::list<Position> robot_position;
     Position pos;
     
-    bool status_camera = cam.Open();
-    if (status_camera == false) {
-        failed_open_cam = new Message(MESSAGE_ANSWER_NACK);
-        WriteInQueue(&q_messageToMon, failed_open_cam);
-    }
+    while(1) {
+        
+        rt_sem_p(&sem_camera, TM_INFINITE);
 
-    while (1) {
-        rt_mutex_acquire(&mutex_closeCamera, TM_INFINITE);
-        close_cam_order = close_camera;
-        rt_mutex_release(&mutex_closeCamera);
-        if (close_cam_order == true) {
-            cam.Close();
-            rt_sem_v(&sem_camera);
-            break;
-        }
-        // a tester sans variable intermédiare
-        rt_mutex_acquire(&mutex_image, TM_INFINITE);
-        
-        rt_mutex_acquire(&mutex_arena, TM_INFINITE);
-        arena_known = (arena != 0);
-        
-        rt_mutex_acquire(&mutex_computePositionMode, TM_INFINITE);
-        copy_of_CPM = computePositionMode;
-        rt_mutex_release(&mutex_computePositionMode);
-        if ((copy_of_CPM == true) and (arena_known == true)) {
-            robot_position = image->SearchRobot(*arena);
+        bool status_camera = cam.Open();
+        if (status_camera == false) {
+            failed_open_cam = new Message(MESSAGE_ANSWER_NACK);
+            WriteInQueue(&q_messageToMon, failed_open_cam);
         }
         
-        
-        //if (robot_position == []) {
-        //    pos = ?????
-        //    WriteInQueue(&q_messageToMon, new MessagePosition(MESSAGE_CAM_POSITION, pos));        
-        //} else {
-        //    pos = robot_position[0];
-        //}
-        *image = cam.Grab();
-        //WriteInQueue()
-        
-        rt_mutex_release(&mutex_arena);
-        rt_mutex_release(&mutex_image);
-        
-        rt_task_wait_period(NULL);
+        //loop
+        while (1) {
+            rt_mutex_acquire(&mutex_closeCamera, TM_INFINITE);
+            close_cam_order = close_camera;
+    
+            rt_mutex_release(&mutex_closeCamera);
+            if (close_cam_order == true) {
+                cam.Close();
+                rt_sem_v(&sem_camera);
+                break;
+            }
+            // a tester sans variable intermédiare
+            rt_mutex_acquire(&mutex_image, TM_INFINITE);
+            image = cam.Grab().Copy();
+            
+            rt_mutex_acquire(&mutex_arena, TM_INFINITE);
+            arena_known = (arena != 0);
+
+            rt_mutex_acquire(&mutex_computePositionMode, TM_INFINITE);
+            copy_of_CPM = computePositionMode;
+            rt_mutex_release(&mutex_computePositionMode);
+            
+            if (arena_known == true) {
+                image->DrawArena(*arena);
+            }
+            
+            if ((copy_of_CPM == true) and (arena_known == true)) {
+                robot_position = image->SearchRobot(*arena);
+                if (robot_position.size() == 0) {
+                    pos = Position();
+                    pos.center=cv::Point2f(-1.0,-1.0);
+                } else {
+                    pos = *robot_position.begin();
+                }
+                WriteInQueue(&q_messageToMon, new MessagePosition(MESSAGE_CAM_POSITION, pos));
+            }          
+                
+            WriteInQueue(&q_messageToMon, new MessageImg(MESSAGE_CAM_IMAGE, image));
+
+            rt_mutex_release(&mutex_arena);
+            rt_mutex_release(&mutex_image);
+
+            rt_task_wait_period(NULL);
+        }
 
     }
 }
