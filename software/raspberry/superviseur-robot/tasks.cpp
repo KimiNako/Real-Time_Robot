@@ -329,11 +329,7 @@ void Tasks::ReceiveFromMonTask(void *arg) {
         } else if (msgRcv->CompareID(MESSAGE_CAM_OPEN)) {
             rt_sem_v(&sem_camera);
         } else if (msgRcv->CompareID(MESSAGE_CAM_CLOSE)) {
-<<<<<<< Updated upstream
             close_camera = true;
-=======
-            rt_sem_p(&sem_camera, TM_INFINITE);
->>>>>>> Stashed changes
         } else if (msgRcv->CompareID(MESSAGE_CAM_POSITION_COMPUTE_START)) {
             rt_mutex_acquire(&mutex_computePositionMode, TM_INFINITE);
             computePositionMode = true;
@@ -538,20 +534,11 @@ void Tasks::CameraTask(void *arg) {
     /* The task starts here                                                               */
     /**************************************************************************************/
     rt_sem_p(&sem_camera, TM_INFINITE);
-<<<<<<< Updated upstream
     
     // set the period in a way that we send an image every 100ms
     rt_task_set_periodic(NULL, TM_NOW, rt_timer_ns2ticks(100000000));
 
     //initialisation
-=======
-
-    rt_task_set_periodic(NULL, TM_NOW, 500000000);
-
-
-    //initialisation
-
->>>>>>> Stashed changes
     Camera cam;
     bool copy_of_CPM;
     bool close_cam_order;
@@ -564,17 +551,10 @@ void Tasks::CameraTask(void *arg) {
         failed_open_cam = new Message(MESSAGE_ANSWER_NACK);
         WriteInQueue(&q_messageToMon, failed_open_cam);
     }
-<<<<<<< Updated upstream
-    
- 
-=======
 
->>>>>>> Stashed changes
     //loop
-    
-    
+      
     while (1) {
-<<<<<<< Updated upstream
         rt_mutex_acquire(&mutex_closeCamera, TM_INFINITE);
         close_cam_order = close_camera;
         rt_mutex_release(&mutex_closeCamera);
@@ -610,9 +590,6 @@ void Tasks::CameraTask(void *arg) {
         rt_mutex_release(&mutex_image);
         
         rt_task_wait_period(NULL);
-=======
-
->>>>>>> Stashed changes
     }
 }
 
