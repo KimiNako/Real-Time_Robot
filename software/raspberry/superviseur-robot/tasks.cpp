@@ -514,7 +514,9 @@ void Tasks::LoadWD(void *arg) {
                 robot.Close();
                 rt_mutex_release(&mutex_robot);
                 
+                rt_mutex_acquire(&mutex_monitor, TM_INFINITE);
                 WriteInQueue(&q_messageToMon,  new Message(MESSAGE_ANSWER_COM_ERROR));
+                rt_mutex_release(&mutex_monitor);
                 
                 rt_sem_v(&sem_openComRobot);
             }
